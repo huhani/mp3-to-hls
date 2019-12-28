@@ -5,7 +5,7 @@ Divide the MP3 files into different fragments.
 ### How to use:
 
 ```
-var MP3ToHLS = require("../");
+var MP3ToHLS = require("mp3-to-hls");
 var fs = require("fs");
 
 var mp3file = "./test.mp3";
