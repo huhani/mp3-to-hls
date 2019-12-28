@@ -29,7 +29,7 @@ var MP3ToHLS = function MP3ToHLS() {
         this._ended = false;
         this._started = false;
         this._deferred = buildDeferred();
-        this._createFileJobDeferred = null;
+        this._extractJobDeferred = null;
         this._FrameReader = null;
         this._result = null;
         this._extractDeferred = null;
@@ -83,14 +83,7 @@ var MP3ToHLS = function MP3ToHLS() {
         });
         this._FrameReader.getPromise().then(function(result){
             that._result = result;
-
-
-            //FIXME
-            that._createFile(result.fragments).then(function(){
-                that._resolve(result);
-            })['catch'](function(err){
-                that._reject(err);
-            });
+            that._resolve(result);
 
         })['catch'](function(err){
             console.error(err);
@@ -129,12 +122,21 @@ var MP3ToHLS = function MP3ToHLS() {
 
     //FIXME
     MP3ToHLS.prototype.extract = function(config) {
-        if(this._extractDeferred) {
-            return this._extractDeferred.promise;
+        if(!this._result) {
+            throw new Error("Instance is not initialized.");
         }
+
+        var extractDeferred = buildDeferred();
+        this._createFile(this._result.fragments, config).then(function(){
+            extractDeferred.resolve(void 0);
+        })['catch'](function(err){
+            extractDeferred.reject(err);
+        });
+
+        return extractDeferred.promise;
     };
 
-    MP3ToHLS.prototype._createFile = function(fragments) {
+    MP3ToHLS.prototype._createFile = function(fragments, config) {
 
         // FIXME
 
@@ -150,14 +152,18 @@ var MP3ToHLS = function MP3ToHLS() {
             var writeDeferred = buildDeferred();
             var readDeferred = buildDeferred();
 
+            var filename = config.filename + idx + ".mp3";
+            var filepath = config.extractDir + "/" + filename;
+            filepath = filepath.replace(/(\/.?\/)/, "/");
+
             readDeferred.promise.then(function(data){
-                fs.writeFile("./audio/chunk_"+(idx)+".mp3", data, function(err) {
+                fs.writeFile(filepath, data, function(err) {
                     if(err){
                         return writeDeferred.reject(err);
                     }
                     playlist.push({
                         duration: fragment.duration,
-                        path: "./chunk_"+idx+".mp3"
+                        path: filename
                     });
                     idx++;
 
@@ -167,7 +173,11 @@ var MP3ToHLS = function MP3ToHLS() {
                 return writeDeferred.promise;
             }).then(function(){
                 if(idx >= fragments.length) {
-                    fs.writeFile("./audio/playlist.m3u8", HLSPlaylist(playlist), function(err){
+                    var playlistFilename = config.playlist + ".m3u8";
+                    var playlistFilepath = config.extractDir + "/" + playlistFilename;
+                    playlistFilepath = playlistFilepath.replace(/(\/.?\/)/, "/");
+
+                    fs.writeFile(playlistFilepath, HLSPlaylist(playlist), function(err){
                         if(!err){
                             deferred.resolve();
                         } else {
